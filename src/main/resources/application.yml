@@ -1,0 +1,11 @@
+bot:
+  token:
+    "7176076647:AAE-CJh67Hn9KKUDAkejS2YFHlASAoWKwxI"
+  name:
+    "s21_library_bot"
+
+
+
+
+spring.application.name:
+  s21_library
