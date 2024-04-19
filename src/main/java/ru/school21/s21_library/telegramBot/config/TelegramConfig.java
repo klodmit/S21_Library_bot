@@ -2,6 +2,7 @@
 //
 //import lombok.RequiredArgsConstructor;
 //import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.context.annotation.Bean;
 //import org.springframework.context.event.ContextRefreshedEvent;
 //import org.springframework.context.event.EventListener;
 //import org.springframework.stereotype.Component;
@@ -14,17 +15,13 @@
 //@Component
 //@RequiredArgsConstructor
 //public class TelegramConfig {
-//    private final  TelegramBot telegramBot;
-//
-//    @EventListener({ContextRefreshedEvent.class})
-//    public void init() {
-//
-//        try {
-//            TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-//            botsApi.registerBot((LongPollingBot) telegramBot);
-//        } catch (TelegramApiException e) {
-//            throw new RuntimeException(e);
-//        }
+//    @Bean
+//    public TelegramBotsApi telegramBotsApi() throws TelegramApiException {
+//        return new TelegramBotsApi(DefaultBotSession.class);
 //    }
+//
+//    @Bean
+//    public
+//            botsApi.registerBot();
 //
 //}

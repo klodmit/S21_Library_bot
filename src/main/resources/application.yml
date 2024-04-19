@@ -9,3 +9,5 @@ bot:
 
 spring.application.name:
   s21_library
+server:
+  port: 8081

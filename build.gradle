@@ -19,6 +19,9 @@ configurations {
 
 repositories {
     mavenCentral()
+    maven {
+        url 'https://repo.craftyn.com/repository/snapshots/'
+    }
 }
 
 dependencies {
@@ -30,6 +33,10 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-test'
     // https://mvnrepository.com/artifact/org.telegram/telegrambots
     implementation 'org.telegram:telegrambots:6.9.7.1'
+    implementation 'net.rossonet:rocket-chat-rest-client:0.2.1'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.1.0'
+
+
 
 }
 
