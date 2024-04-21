@@ -5,6 +5,7 @@ import com.github.baloise.rocketchatrestclient.model.Room;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -17,7 +18,9 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.school21.s21_library.telegramBot.dto.Book;
+import ru.school21.s21_library.telegramBot.dto.BookDto;
 import ru.school21.s21_library.telegramBot.dto.CheckUserDto;
+import ru.school21.s21_library.telegramBot.dto.MenuUserDto;
 import ru.school21.s21_library.telegramBot.service.TelegramService;
 
 import java.io.*;
@@ -36,26 +39,30 @@ public class TelegramBotController extends TelegramLongPollingBot {
     private final TelegramService service;
     private final InlineKeyBoard inlineKeyBoard;
 
-    private static Set<String> startAuth = new HashSet<>();
+    private static Map<String, MenuUserDto> startAuth = new HashMap<>();
     private static Set<String> promtToConnect = new HashSet<>();
     private static Map<String, String> waitCode = new HashMap<>();
+    private static Map<String, String> prevCommand = new HashMap<>();
 
 
     @Override
     public void onUpdateReceived(Update update) {
-
-
         if (update.getMessage() != null) {
+            log.info(update.getMessage().getText() + " " + update.getMessage().getFrom().getFirstName());
             String chatId = String.valueOf(update.getMessage().getChatId());
             Message message = update.getMessage();
             textHandler(message, chatId);
         } else {
+            log.info(update.getCallbackQuery().getData() + " " + update.getCallbackQuery().getFrom().getFirstName());
             String message = update.getCallbackQuery().getData();
            String chatId =  String.valueOf(update.getCallbackQuery().getMessage().getChatId());
-            commandHandler(message, chatId);
+            try {
+                commandHandler(message, chatId);
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-//        log.info("msg: {}, from {}", message.getText(), message.getFrom().getFirstName());
 
 
     }
@@ -76,6 +83,7 @@ public class TelegramBotController extends TelegramLongPollingBot {
         SendMessage sendMessage = new SendMessage();
         sendMessage.setText(text);
         sendMessage.setChatId(chatId);
+        sendMessage.enableHtml(true);
         execute(sendMessage);
     }
 
@@ -88,20 +96,43 @@ public class TelegramBotController extends TelegramLongPollingBot {
     }
 
     @SneakyThrows
-    public void sendMessage(String text, String chatId, boolean r) {
-        var next = InlineKeyboardButton.builder()
-                .text("Показать Книги").callbackData("/showBooks")
+    public void sendMenu(MenuUserDto menuUserDto) {
+        var showBook = InlineKeyboardButton.builder()
+                .text("Книги").callbackData("/showBooks")
+                .build();
+        var reserveBook = InlineKeyboardButton.builder()
+                .text("Резерв").callbackData("/ReserveBook")
+                .build();
+        var returnBook = InlineKeyboardButton.builder()
+                .text("Вернуть").callbackData("/ReturnBook")
                 .build();
 
-        InlineKeyboardMarkup keyboardM1;
-        keyboardM1 = InlineKeyboardMarkup.builder()
 
-                .keyboardRow(List.of(next)).build();
         SendMessage sendMessage = new SendMessage();
-        sendMessage.setText(text);
-        sendMessage.setParseMode("HTML");
-        sendMessage.setChatId(chatId);
-        sendMessage.setReplyMarkup(keyboardM1);
+        InlineKeyboardMarkup keyboardM1;
+
+        if (menuUserDto.getRole().equals("user")) {
+            keyboardM1 = InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(showBook, reserveBook, returnBook)).build();
+            sendMessage.setText("User menu");
+            sendMessage.setParseMode("HTML");
+            sendMessage.setChatId(menuUserDto.getChatId());
+            sendMessage.setReplyMarkup(keyboardM1);
+        }
+        else {
+            var editBook = InlineKeyboardButton.builder()
+                    .text("Ред Книгу").callbackData("/EditBook")
+                    .build();
+            var addBook = InlineKeyboardButton.builder()
+                    .text("доб Книгу").callbackData("/addBook")
+                    .build();
+            keyboardM1 = InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(showBook, reserveBook, returnBook, editBook, addBook)).build();
+            sendMessage.setText("Admin menu");
+            sendMessage.setParseMode("HTML");
+            sendMessage.setChatId(menuUserDto.getChatId());
+            sendMessage.setReplyMarkup(keyboardM1);
+        }
         execute(sendMessage);
     }
 
@@ -125,26 +156,112 @@ public class TelegramBotController extends TelegramLongPollingBot {
     private void textHandler(Message message, String chatId) {
         switch (message.getText()) {
             case "/start":
-                if (!startAuth.contains(chatId) && !promtToConnect.contains(chatId)) {
-                    if (service.checkUser(CheckUserDto.builder()
+                if (!startAuth.containsKey(chatId) && !promtToConnect.contains(chatId)) {
+                    MenuUserDto menuUserDto = service.checkUser(CheckUserDto.builder()
                             .chatId(chatId)
-                            .build())) {
-                        startAuth.add(chatId);
-                        sendMessage("<b>Menu 1</b>", chatId, true);
+                            .build());
+                    if (menuUserDto != null) {
+                        startAuth.put(chatId, menuUserDto);
+                        sendMenu( menuUserDto);
                     } else {
                         sendMessage("Привет, ты у нас новенький! Можешь сказать свой логин", chatId);
                         promtToConnect.add(chatId);
                     }
-                } else if (!startAuth.contains(chatId)) {
+                } else if (!startAuth.containsKey(chatId)) {
                     sendMessage("пройди регу, *_* -> напиши свой ник", chatId);
                 } else {
-                    sendMessage("<b>Menu 1</b>", chatId, true);
-                    startAuth.add(chatId);
+                    sendMenu(startAuth.get(chatId));
                 }
                 break;
 
+            default:
+                if (!startAuth.containsKey(chatId)) {
+                    if (!waitCode.containsKey(chatId)) {
+                        if (service.sendCode(message.getText()).equals("Success")) {
+                            waitCode.put(chatId, message.getText());
+                            sendMessage("Введи пж код из рокета", chatId);
+                        } else if (promtToConnect.contains(chatId)) {
+                            sendMessage("Укажи норм ник", chatId);
+                        }
+                        else {
+                            sendMenu(startAuth.get(chatId));
+                        }
+
+                    } else if (waitCode.containsKey(chatId) && service.checkCode(message.getText())) {
+                        service.UserRegistration(waitCode.get(chatId), chatId);
+                        MenuUserDto menuUserDto = service.checkUser(CheckUserDto.builder()
+                                .chatId(chatId)
+                                .build());
+                        sendMenu(menuUserDto);
+                        promtToConnect.remove(chatId);
+                        startAuth.put(chatId, menuUserDto);
+                        waitCode.remove(chatId);
+                    } else {
+                        sendMessage("Код указан неверно", chatId);
+                    }
+                }
+                else {
+                    if (prevCommand.get(chatId).equals("/ReserveBook")) {
+                        String[] split = null;
+                        BookDto bookDto;
+                        if(!StringUtils.isNumeric(message.getText())) {
+                             split = message.getText().split("/");
+                            bookDto = BookDto.builder()
+                                    .chatId(chatId)
+                                    .title(split[0])
+                                    .author(split[1])
+                                    .build();
+                        }
+                       else {
+                            bookDto = BookDto.builder()
+                                    .chatId(chatId)
+                                    .id(Long.parseLong(message.getText()))
+                                    .build();
+                        }
+                        service.makeReserve(bookDto);
+                       sendMenu(startAuth.get(chatId));
+                    }
+                    else if (prevCommand.get(chatId).equals("/ReturnBook")) {
+                        String[] split = null;
+                        BookDto bookDto;
+                        if(!StringUtils.isNumeric(message.getText())) {
+                            split = message.getText().split("/");
+                            bookDto = BookDto.builder()
+                                    .chatId(chatId)
+                                    .title(split[0])
+                                    .author(split[1])
+                                    .build();
+                        }
+                        else {
+                            bookDto = BookDto.builder()
+                                    .chatId(chatId)
+                                    .id(Long.parseLong(message.getText()))
+                                    .build();
+                        }
+                        service.returnBook(bookDto);
+                        sendMenu(startAuth.get(chatId));
+                    }
+                    else if (prevCommand.get(chatId).equals("/addBook")) {
+                        //title/author/rating/copies/genre
+                        String[] split =  message.getText().split("/");
+                        BookDto bookDto = BookDto.builder()
+                                .title(split[0])
+                                .author(split[1])
+                                .rating(Integer.parseInt(split[2]))
+                                .copies(Integer.parseInt(split[3]))
+                                .genre(split[4])
+                                .build();
+                        service.addBook(bookDto);
+                        sendMenu(startAuth.get(chatId));
+                    }
+                }
+        }
+    }
+
+    private void commandHandler(String command, String chatId) throws TelegramApiException {
+        switch (command) {
             case "/showBooks":
-                if (startAuth.contains(chatId)) {
+                if (startAuth.containsKey(chatId)) {
                     String test = service.getBooks();
                     try {
                         File testFile = File.createTempFile("test", ".html");
@@ -157,125 +274,52 @@ public class TelegramBotController extends TelegramLongPollingBot {
                     } catch (IOException | TelegramApiException e) {
                         throw new RuntimeException(e);
                     }
-//                    BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream());
-//                    sendCollection(service.getBooks(), chatId);
-                } else {
-                    sendMessage("Напиши /start для выхода в menu", chatId);
                 }
+                else {
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
+                }
+//
                 break;
             case "/addBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
+                if (startAuth.containsKey(chatId)) {
+                    if (startAuth.containsKey(chatId) ) {
+                        prevCommand.put(chatId, "/addBook");
+                        sendMessage("введите данные о книге в таком формате: title/author/rating/copies/genre", chatId);
+                    }
                 } else {
-                    sendMessage("Зарегайся", chatId);
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }
                 break;
             case "/deleteBook":
-                if (startAuth.contains(chatId)) {
+                if (startAuth.containsKey(chatId)) {
                     sendMessage("Фича в разработке", chatId);
                 } else {
                     sendMessage("Зарегайся", chatId);
                 }
                 break;
             case "/EditBook":
-                if (startAuth.contains(chatId)) {
+                if (startAuth.containsKey(chatId)) {
                     sendMessage("Фича в разработке", chatId);
                 } else {
-                    sendMessage("Зарегайся", chatId);
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }
                 break;
             case "/ReserveBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
+                if (startAuth.containsKey(chatId) ) {
+                    prevCommand.put(chatId, "/ReserveBook");
+                    sendMessage("введите номер книги или название кинги + автор в формате title/author", chatId);
                 } else {
-                    sendMessage("Зарегайся", chatId);
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }
                 break;
             case "/ReturnBook":
-                if (promtToConnect.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
+                if (startAuth.containsKey(chatId)) {
+                    prevCommand.put(chatId, "/ReturnBook");
+                    sendMessage("введите номер книги в общем списке или название кинги + автор в формате title/author", chatId);
                 } else {
-                    sendMessage("Зарегайся", chatId);
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }
                 break;
-
-            default:
-                if (!startAuth.contains(chatId)) {
-                    if (!waitCode.containsKey(chatId)) {
-                        if (service.sendCode(message.getText()).equals("Success")) {
-                            waitCode.put(chatId, message.getText());
-                            sendMessage("Введи пж код из рокета", chatId);
-                        } else if (promtToConnect.contains(chatId)) {
-                            sendMessage("Укажи норм ник", chatId);
-                        }
-
-                    } else if (waitCode.containsKey(chatId) && service.checkCode(message.getText())) {
-                        service.UserRegistration(waitCode.get(chatId), chatId);
-                        sendMessage("<b>Menu 1</b>", chatId, true);
-                        promtToConnect.remove(chatId);
-                        startAuth.add(chatId);
-                        waitCode.remove(chatId);
-                    } else {
-                        sendMessage("Код указан неверно", chatId);
-                    }
-                }
-        }
-    }
-
-    private void commandHandler(String command, String chatId) {
-        switch (command) {
-            case "/showBooks":
-                String test = service.getBooks();
-                try {
-                    File testFile = File.createTempFile("test", ".html");
-                    try (OutputStreamWriter outputStream = new OutputStreamWriter(new FileOutputStream(testFile), StandardCharsets.UTF_8);
-                         BufferedWriter writer = new BufferedWriter(outputStream)) {
-                        writer.write(test);
-                        writer.flush();
-                    }
-                    sendFile(testFile, chatId);
-                } catch (IOException | TelegramApiException e) {
-                    throw new RuntimeException(e);
-                }
-//                    BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream());
-//                    sendCollection(service.getBooks(), chatId);
-                break;
-            case "/addBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
-                } else {
-                    sendMessage("Зарегайся", chatId);
-                }
-                break;
-            case "/deleteBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
-                } else {
-                    sendMessage("Зарегайся", chatId);
-                }
-                break;
-            case "/EditBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
-                } else {
-                    sendMessage("Зарегайся", chatId);
-                }
-                break;
-            case "/ReserveBook":
-                if (startAuth.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
-                } else {
-                    sendMessage("Зарегайся", chatId);
-                }
-                break;
-            case "/ReturnBook":
-                if (promtToConnect.contains(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
-                } else {
-                    sendMessage("Зарегайся", chatId);
-                }
-                break;
-
             default:
 
         }

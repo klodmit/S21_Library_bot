@@ -4,14 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.File;
-import ru.school21.s21_library.telegramBot.dto.AuthUserDto;
-import ru.school21.s21_library.telegramBot.dto.Book;
-import ru.school21.s21_library.telegramBot.dto.CheckUserDto;
-import ru.school21.s21_library.telegramBot.dto.RegistrationUserDto;
-import ru.school21.s21_library.telegramBot.gateway.AuthRequest;
-import ru.school21.s21_library.telegramBot.gateway.CheckUserRequest;
-import ru.school21.s21_library.telegramBot.gateway.RegistrationRequest;
-import ru.school21.s21_library.telegramBot.gateway.ShowBooksGateway;
+import ru.school21.s21_library.telegramBot.dto.*;
+import ru.school21.s21_library.telegramBot.gateway.*;
 
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +21,9 @@ public class TelegramService {
 
     private final CheckUserRequest checkUserRequest;
     private final ShowBooksGateway showBooksGateway;
+    private final ReserveBookGateway reserveBookGateway;
+    private final ReturnBookGateway returnBookGateway;
+    private final AddBook addBook;
     private static Set<String> codeSet = new HashSet<>();
 
     public String  sendCode(String nickName) {
@@ -55,15 +52,28 @@ public class TelegramService {
         registrationRequest.reg(registrationUserDto);
     }
 
-    public boolean checkUser(CheckUserDto checkUserDto) {
-        String res = checkUserRequest.checkUser(checkUserDto);
+    public MenuUserDto checkUser(CheckUserDto checkUserDto) {
+        MenuUserDto res = checkUserRequest.checkUser(checkUserDto);
         log.info("ret {}", res);
-        return checkUserRequest.checkUser(checkUserDto).equals("Success");
+        return res;
     }
 
     public String getBooks() {
         return showBooksGateway.showBooks();
     }
+
+    public String makeReserve(BookDto bookDto) {
+       return  reserveBookGateway.reserve(bookDto);
+    }
+
+    public String returnBook(BookDto bookDto) {
+        return returnBookGateway.returnBook(bookDto);
+    }
+    public String addBook(BookDto bookDto) {
+        return addBook.saveBook(bookDto);
+    }
+
+
 
 
 }

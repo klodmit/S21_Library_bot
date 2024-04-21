@@ -1,0 +1,17 @@
+package ru.school21.s21_library.telegramBot.gateway;
+
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import ru.school21.s21_library.telegramBot.dto.Book;
+import ru.school21.s21_library.telegramBot.dto.BookDto;
+import ru.school21.s21_library.telegramBot.dto.RegistrationUserDto;
+
+@FeignClient(
+        url = "http://localhost:8083",
+        name = "reserve"
+)
+public interface ReserveBookGateway {
+    @PostMapping(value = "/make-reserve")
+    String reserve(@RequestBody BookDto book);
+}
