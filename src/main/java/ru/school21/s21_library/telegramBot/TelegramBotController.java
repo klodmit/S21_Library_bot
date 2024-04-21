@@ -101,7 +101,7 @@ public class TelegramBotController extends TelegramLongPollingBot {
                 .text("Книги").callbackData("/showBooks")
                 .build();
         var reserveBook = InlineKeyboardButton.builder()
-                .text("Резерв").callbackData("/ReserveBook")
+                .text("Зарезервировать").callbackData("/ReserveBook")
                 .build();
         var returnBook = InlineKeyboardButton.builder()
                 .text("Вернуть").callbackData("/ReturnBook")
@@ -212,11 +212,16 @@ public class TelegramBotController extends TelegramLongPollingBot {
                         BookDto bookDto;
                         if(!StringUtils.isNumeric(message.getText())) {
                              split = message.getText().split("/");
-                            bookDto = BookDto.builder()
-                                    .chatId(chatId)
-                                    .title(split[0])
-                                    .author(split[1])
-                                    .build();
+                            // sergey
+                            if (split != null && split.length == 2) {
+                                bookDto = BookDto.builder()
+                                        .chatId(chatId)
+                                        .title(split[0])
+                                        .author(split[1])
+                                        .build();
+                            } else {
+                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                            }
                         }
                        else {
                             bookDto = BookDto.builder()
@@ -232,11 +237,17 @@ public class TelegramBotController extends TelegramLongPollingBot {
                         BookDto bookDto;
                         if(!StringUtils.isNumeric(message.getText())) {
                             split = message.getText().split("/");
-                            bookDto = BookDto.builder()
-                                    .chatId(chatId)
-                                    .title(split[0])
-                                    .author(split[1])
-                                    .build();
+                            // sergey
+                            if (split != null && split.length == 2) {
+                                bookDto = BookDto.builder()
+                                .chatId(chatId)
+                                .title(split[0])
+                                .author(split[1])
+                                .build();
+                            } else {
+                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                            }
+
                         }
                         else {
                             bookDto = BookDto.builder()
@@ -250,13 +261,19 @@ public class TelegramBotController extends TelegramLongPollingBot {
                     else if (prevCommand.get(chatId).equals("/addBook")) {
                         //title/author/rating/copies/genre
                         String[] split =  message.getText().split("/");
-                        BookDto bookDto = BookDto.builder()
+                            // sergey
+                            if (split != null && split.length == 5) {
+                                BookDto bookDto = BookDto.builder()
                                 .title(split[0])
                                 .author(split[1])
                                 .rating(Integer.parseInt(split[2]))
                                 .copies(Integer.parseInt(split[3]))
                                 .genre(split[4])
                                 .build();
+                            } else {
+                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                            }
+
                         service.addBook(bookDto);
                         sendMenu(startAuth.get(chatId));
                     }
