@@ -7,6 +7,8 @@ import lombok.Data;
 @Builder
 public class BookDto {
     private String author;
+    private String changeAuthor;
+    private String changeTitle;
     private String title;
     private String chatId;
     private String genre;

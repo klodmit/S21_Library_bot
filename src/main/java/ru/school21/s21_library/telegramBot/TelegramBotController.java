@@ -51,7 +51,11 @@ public class TelegramBotController extends TelegramLongPollingBot {
             log.info(update.getMessage().getText() + " " + update.getMessage().getFrom().getFirstName());
             String chatId = String.valueOf(update.getMessage().getChatId());
             Message message = update.getMessage();
-            textHandler(message, chatId);
+            try {
+                textHandler(message, chatId);
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
         } else {
             log.info(update.getCallbackQuery().getData() + " " + update.getCallbackQuery().getFrom().getFirstName());
             String message = update.getCallbackQuery().getData();
@@ -159,7 +163,7 @@ public class TelegramBotController extends TelegramLongPollingBot {
         });
     }
 
-    private void textHandler(Message message, String chatId) {
+    private void textHandler(Message message, String chatId) throws TelegramApiException {
         switch (message.getText()) {
             case "/start":
                 if (!startAuth.containsKey(chatId) && !promtToConnect.contains(chatId)) {
@@ -209,18 +213,19 @@ public class TelegramBotController extends TelegramLongPollingBot {
                 else {
                     if (prevCommand.get(chatId).equals("/ReserveBook")) {
                         String[] split = null;
-                        BookDto bookDto;
+                        BookDto bookDto = null;
                         if(!StringUtils.isNumeric(message.getText())) {
                              split = message.getText().split("/");
                             // sergey
-                            if (split != null && split.length == 2) {
+                            if (split.length == 2) {
                                 bookDto = BookDto.builder()
                                         .chatId(chatId)
                                         .title(split[0])
                                         .author(split[1])
                                         .build();
                             } else {
-                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                                sendInvalid("Неверный формат данных. Попробуйте еще раз!",chatId);
+
                             }
                         }
                        else {
@@ -229,12 +234,14 @@ public class TelegramBotController extends TelegramLongPollingBot {
                                     .id(Long.parseLong(message.getText()))
                                     .build();
                         }
-                        service.makeReserve(bookDto);
+                        if(service.makeReserve(bookDto).equals("Success")) {
+                            sendInvalid("Нет такой книги. Попробуй еще раз!", chatId);
+                        };
                        sendMenu(startAuth.get(chatId));
                     }
                     else if (prevCommand.get(chatId).equals("/ReturnBook")) {
                         String[] split = null;
-                        BookDto bookDto;
+                        BookDto bookDto = null;
                         if(!StringUtils.isNumeric(message.getText())) {
                             split = message.getText().split("/");
                             // sergey
@@ -245,9 +252,8 @@ public class TelegramBotController extends TelegramLongPollingBot {
                                 .author(split[1])
                                 .build();
                             } else {
-                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                                sendInvalid("Неверный формат данных. Попробуйте еще раз!", chatId);
                             }
-
                         }
                         else {
                             bookDto = BookDto.builder()
@@ -255,15 +261,18 @@ public class TelegramBotController extends TelegramLongPollingBot {
                                     .id(Long.parseLong(message.getText()))
                                     .build();
                         }
-                        service.returnBook(bookDto);
+                        if(service.returnBook(bookDto).equals("Success")) {
+                            sendInvalid("Нет такой книги. Попробуй еще раз!", chatId);
+                        }
                         sendMenu(startAuth.get(chatId));
                     }
                     else if (prevCommand.get(chatId).equals("/addBook")) {
                         //title/author/rating/copies/genre
                         String[] split =  message.getText().split("/");
+                        BookDto bookDto = null;
                             // sergey
                             if (split != null && split.length == 5) {
-                                BookDto bookDto = BookDto.builder()
+                                bookDto = BookDto.builder()
                                 .title(split[0])
                                 .author(split[1])
                                 .rating(Integer.parseInt(split[2]))
@@ -271,25 +280,29 @@ public class TelegramBotController extends TelegramLongPollingBot {
                                 .genre(split[4])
                                 .build();
                             } else {
-                                sendMessage("Неверный формат данных. Попробуйте еще раз!", chatId);
+                                sendInvalid("Неверный формат данных. Попробуйте еще раз!",chatId);
                             }
 
-                        service.addBook(bookDto);
+                        if(service.addBook(bookDto).equals("Success")) {
+                            sendInvalid("Нет такой книги. Попробуй еще раз!", chatId);
+                        };
                         sendMenu(startAuth.get(chatId));
                     }
                     else if (prevCommand.get(chatId).equals("/deleteBook")) {
                         BookDto bookDto = BookDto.builder()
                                 .id(Long.parseLong(message.getText()))
                                 .build();
-                        service.deleteBook(bookDto);
+                        if(service.deleteBook(bookDto).equals("Success")) {
+                            sendInvalid("Нет такой книги. Попробуй еще раз!", chatId);
+                        };
                         sendMenu(startAuth.get(chatId));
                     }
                     else if(prevCommand.get(chatId).equals("/EditBook")) {
                         String[] split = message.getText().split("/");
                         BookDto bookDto = BookDto.builder()
                                 .id(Long.parseLong(split[0]))
-                                .title(split[1])
-                                .author(split[2])
+                                .changeTitle(split[1])
+                                .changeAuthor(split[2])
                                 .rating(Integer.parseInt(split[3]))
                                 .copies(Integer.parseInt(split[4]))
                                 .genre(split[5])
@@ -300,9 +313,26 @@ public class TelegramBotController extends TelegramLongPollingBot {
                 }
         }
     }
+    private void sendInvalid(String text,String chatId) throws TelegramApiException {
+        var back = InlineKeyboardButton.builder()
+                .text("Вернуться в меню").callbackData("/start")
+                .build();
+
+        SendMessage sendMessage = new SendMessage();
+        InlineKeyboardMarkup keyboardM1;
+            keyboardM1 = InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(back)).build();
+            sendMessage.setText(text);
+            sendMessage.setParseMode("HTML");
+            sendMessage.setChatId(chatId);
+            sendMessage.setReplyMarkup(keyboardM1);
+        execute(sendMessage);
+    }
 
     private void commandHandler(String command, String chatId) throws TelegramApiException {
         switch (command) {
+            case "/start" :
+                sendMenu(startAuth.get(chatId));
             case "/showBooks":
                 if (startAuth.containsKey(chatId)) {
                     String test = service.getBooks();
@@ -366,7 +396,6 @@ public class TelegramBotController extends TelegramLongPollingBot {
                 }
                 break;
             default:
-
         }
     }
 }
