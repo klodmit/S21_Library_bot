@@ -126,8 +126,14 @@ public class TelegramBotController extends TelegramLongPollingBot {
             var addBook = InlineKeyboardButton.builder()
                     .text("доб Книгу").callbackData("/addBook")
                     .build();
+            var deleteBook = InlineKeyboardButton.builder()
+                    .text("удалить").callbackData("/deleteBook")
+                    .build();
             keyboardM1 = InlineKeyboardMarkup.builder()
-                    .keyboardRow(List.of(showBook, reserveBook, returnBook, editBook, addBook)).build();
+                    .keyboardRow(List.of(showBook, reserveBook))
+                    .keyboardRow(List.of(returnBook, editBook))
+                    .keyboardRow(List.of(addBook))
+                    .keyboardRow(List.of(deleteBook)).build();
             sendMessage.setText("Admin menu");
             sendMessage.setParseMode("HTML");
             sendMessage.setChatId(menuUserDto.getChatId());
@@ -254,6 +260,26 @@ public class TelegramBotController extends TelegramLongPollingBot {
                         service.addBook(bookDto);
                         sendMenu(startAuth.get(chatId));
                     }
+                    else if (prevCommand.get(chatId).equals("/deleteBook")) {
+                        BookDto bookDto = BookDto.builder()
+                                .id(Long.parseLong(message.getText()))
+                                .build();
+                        service.deleteBook(bookDto);
+                        sendMenu(startAuth.get(chatId));
+                    }
+                    else if(prevCommand.get(chatId).equals("/EditBook")) {
+                        String[] split = message.getText().split("/");
+                        BookDto bookDto = BookDto.builder()
+                                .id(Long.parseLong(split[0]))
+                                .title(split[1])
+                                .author(split[2])
+                                .rating(Integer.parseInt(split[3]))
+                                .copies(Integer.parseInt(split[4]))
+                                .genre(split[5])
+                                .build();
+                        service.editBook(bookDto);
+                        sendMenu(startAuth.get(chatId));
+                    }
                 }
         }
     }
@@ -292,14 +318,16 @@ public class TelegramBotController extends TelegramLongPollingBot {
                 break;
             case "/deleteBook":
                 if (startAuth.containsKey(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
+                    prevCommand.put(chatId, "/deleteBook");
+                    sendMessage("введите номер книги из общего списка(кнопка книги)", chatId);
                 } else {
-                    sendMessage("Зарегайся", chatId);
+                    sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }
                 break;
             case "/EditBook":
                 if (startAuth.containsKey(chatId)) {
-                    sendMessage("Фича в разработке", chatId);
+                    prevCommand.put(chatId, "/EditBook");
+                    sendMessage("введите номер книги и что будете менять формат number/title/author/rating/copies/genre", chatId);
                 } else {
                     sendMessage("Напиши /start для выхода в menu(ваша сессия истекла)", chatId);
                 }

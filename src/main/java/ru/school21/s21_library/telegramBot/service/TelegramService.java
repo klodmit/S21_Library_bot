@@ -23,6 +23,8 @@ public class TelegramService {
     private final ShowBooksGateway showBooksGateway;
     private final ReserveBookGateway reserveBookGateway;
     private final ReturnBookGateway returnBookGateway;
+    private final DeleteBookGateway deleteBookGateway;
+    private final EditBookGateWay editBookGateWay;
     private final AddBook addBook;
     private static Set<String> codeSet = new HashSet<>();
 
@@ -72,6 +74,15 @@ public class TelegramService {
     public String addBook(BookDto bookDto) {
         return addBook.saveBook(bookDto);
     }
+
+    public String deleteBook(BookDto bookDto) {
+        return deleteBookGateway.deleteBook(bookDto);
+    }
+
+    public String editBook(BookDto bookDto) {
+        return editBookGateWay.editBook(bookDto);
+    }
+
 
 
 
